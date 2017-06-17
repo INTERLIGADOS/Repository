@@ -610,9 +610,9 @@ SEND E MAIL: tvsupertuga@gmail.com[/B][/COLOR]</description>
 		<checksum>https://raw.githubusercontent.com/tugateam/Repository/master/addons.xml.md5</checksum>
 		<datadir zip="true">https://raw.githubusercontent.com/tugateam/Repository/master/instal/</datadir>
 	</dir>
-		<info compressed="false">https://raw.githubusercontent.com/tugateam/Repository/master/addons.xml</info>
-		<checksum>https://raw.githubusercontent.com/tugateam/Repository/master/addons.xml.md5</checksum>
-		<datadir zip="true">https://raw.githubusercontent.com/tugateam/Repository/master/instal/</datadir>
+		<info compressed="false">https://sfgreghjtgrfhf.000webhostapp.com/tugateam/addons.xml</info>
+		<checksum>https://sfgreghjtgrfhf.000webhostapp.com/tugateam/addons.xml.md5</checksum>
+		<datadir zip="true">https://sfgreghjtgrfhf.000webhostapp.com/tugateam/instal/master/instal/</datadir>
 	</extension>
 	<extension point="xbmc.addon.metadata">
 		<summary>teamtuga4ever</summary>

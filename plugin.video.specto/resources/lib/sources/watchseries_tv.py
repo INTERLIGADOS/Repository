@@ -41,7 +41,7 @@ class NoRedirection(urllib2.HTTPErrorProcessor):
 
 class source:
     def __init__(self):
-        self.base_link = 'http://watchseriesfree.to'
+        self.base_link = 'https://watchseriesfree.to'
         self.search_link = '/AdvancedSearch/%s-%s/by_popularity/%s'
         self.episode_link = '/episode/%s_s%s_e%s.html'
         self.headers = {}
@@ -119,8 +119,8 @@ class source:
 
             result = ''
 
-            result, headers, content, cookie  = client.request(urlparse.urljoin(self.base_link, url), output='extended')
-            #result, headers, content, cookie = client.request(url, limit='0', output='extended')
+            r100 = client.request(urlparse.urljoin(self.base_link, url), output='extended')
+            cookie = r100[4];headers = r100[3];result = r100[0]
 
             self.headers['Referer'] = urlparse.urljoin(self.base_link, url)
             self.headers['Cookie'] = cookie
@@ -161,7 +161,7 @@ class source:
             for i in range(0, 10 * 2):
                 is_alive = [x.is_alive() for x in threads]
                 if all(x == False for x in is_alive): break
-                time.sleep(1)
+                time.sleep(0.5)
             return self.sources
         except Exception as e:
             control.log('ERROR watchseries %s' % e)

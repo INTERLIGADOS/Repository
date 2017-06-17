@@ -20,16 +20,15 @@
 
 
 import re,urllib,urlparse,json, random, time
-
 from resources.lib.libraries import control
 from resources.lib.libraries import cleantitle
 from resources.lib.libraries import client
-
+import base64
 
 
 class source:
     def __init__(self):
-        self.base_link = 'http://fmovies.to/'
+        self.base_link = 'http://fmovies.se/'
         self.search_link = '/sitemap'
         self.search_link2 = 'http://fmovies.to/ajax/film/search?sort=year%3Adesc&funny=1&keyword=%s'
         self.hash_link = '/ajax/episode/info'
@@ -108,12 +107,9 @@ class source:
                     except: pass
 
                     query = {'keyword': title, 's':''}
-                    #query.update(self.__get_token(query))
                     search_url = urlparse.urljoin(self.base_link, '/search')
                     search_url = search_url + '?' + urllib.urlencode(query)
-                    #print("R",search_url)
                     result = client.request(search_url)
-                    #print("r", result)
 
 
                     r = client.parseDOM(result, 'div', attrs = {'class': '[^"]*movie-list[^"]*'})[0]
@@ -121,18 +117,18 @@ class source:
                     r = [(client.parseDOM(i, 'a', ret='href'), client.parseDOM(i, 'a', attrs = {'class': 'name'})) for i in r]
                     r = [(i[0][0], i[1][0]) for i in r if len(i[0]) > 0 and  len(i[1]) > 0]
                     r = [(re.sub('http.+?//.+?/','/', i[0]), re.sub('&#\d*;','', i[1])) for i in r]
-                    print r
 
                     if 'season' in data:
-                        url = [(i[0], re.findall('(.+?) (\d*)$', i[1])) for i in r]
-                        #print url
+                        r = [(i[0], re.sub(' \(\w*\)', '', i[1])) for i in r]
+                        #title += '%01d' % int(data['season'])
+                        url = [(i[0], re.findall('(.+?) (\d+)$', i[1])) for i in r]
                         url = [(i[0], i[1][0][0], i[1][0][1]) for i in url if len(i[1]) > 0]
-                        #print url
                         url = [i for i in url if cleantitle.get(title) in cleantitle.get(i[1])]
-                        print url,'%01d' % int(data['season'])
+                        for i in url:
+                            print i[2],i[0],i[1]
+                            print '%01d' % int(data['season']) == '%01d' % int(i[2])
 
                         url = [i for i in url if '%01d' % int(data['season']) == '%01d' % int(i[2])]
-                        print("END",url)
                     else:
                         url = [i for i in r if cleantitle.get(title) in cleantitle.get(i[1])]
                     #print("r1", cleantitle.get(title),url,r)
@@ -142,7 +138,6 @@ class source:
 
                     url = urlparse.urljoin(self.base_link, url)
                     r2 = url.split('.')[-1]
-                    #print("r2", r2)
 
 
                 except:
@@ -154,28 +149,26 @@ class source:
 
             referer = url
             result = client.request(url, limit='0')
-            result, headers, content, cookie1 = client.request(url, limit='0', output='extended')
-            #http://fmovies.to/user/ajax/menu-bar?ts=1481367600&_=1623
-            #Cookie:"__cfduid=d3e825f4e60935fb63188dccb8206b16b1481368143;
-            # session=88aca375fa71b2005ea33dd8b540c80bb7aa2b9f; user-info=null;
-            # MarketGidStorage=%7B%220%22%3A%7B%22svspr%22%3A%22%22%2C%22svsds%22%3A3%2C%22TejndEEDj%22%3A%22MTQ4MTM2ODE0NzM0NzQ4NTMyOTAx%22%7D%2C%22C48532%22%3A%7B%22page%22%3A1%2C%22time%22%3A1481368147359%7D%2C%22C77945%22%3A%7B%22page%22%3A1%2C%22time%22%3A1481368147998%7D%2C%22C77947%22%3A%7B%22page%22%3A1%2C%22time%22%3A1481368148109%7D%7D"
-            print("r22", cookie1)
+            r = client.request(url, limit='0', output='extended')
+            cookie1 = r[4] ; headers = r[3] ; r1 = r[0]
 
             hash_url = urlparse.urljoin(self.base_link, '/user/ajax/menu-bar')
             # int(time.time())
             query = {'ts': myts}
             query.update(self.__get_token(query))
             hash_url = hash_url + '?' + urllib.urlencode(query)
-            r1, headers, content, cookie2 = client.request(hash_url, limit='0', output='extended', cookie=cookie1)
-            print("r22", cookie2)
-
+            r = client.request(hash_url, limit='0', output='extended', cookie=cookie1)
+            cookie2 = r[4] ; headers = r[3] ; r1 = r[0]
 
             alina = client.parseDOM(result, 'title')[0]
-            print( re.findall('(\d{4})', alina))
 
             atr = [i for i in client.parseDOM(result, 'title') if len(re.findall('(\d{4})', i)) > 0][-1]
             if 'season' in data:
-                result = result if year in atr or data['year'] in atr else None
+                years = ['%s' % str(year), '%s' % str(int(year) + 1), '%s' % str(int(year) - 1)]
+                mychk = False
+                for y in years:
+                    if y in atr: mychk = True
+                result = result if mychk ==True else None
             else:
                 result = result if year in atr else None
 
@@ -188,7 +181,6 @@ class source:
             else: quality = 'SD'
 
             result = client.parseDOM(result, 'ul', attrs = {'data-range-id':"0"})
-            print("r3",result,quality)
 
             servers = []
             #servers = client.parseDOM(result, 'li', attrs = {'data-type': 'direct'})
@@ -202,13 +194,7 @@ class source:
 
             for s in servers[:4]:
                 try:
-                    #1481295600
-                    #http://fmovies.to/ajax/episode/info?_token=31f2ab5&id=1r12ww&update=0&film=286l
 
-                    #http://fmovies.to/ajax/episode/info?
-                    # ts=1481367600&_=2334&id=902kxx&update=0
-                    #
-                    #
                     headers = {'X-Requested-With': 'XMLHttpRequest'}
                     time.sleep(0.2)
                     hash_url = urlparse.urljoin(self.base_link, self.hash_link)
@@ -216,7 +202,6 @@ class source:
 
                     query.update(self.__get_token(query))
                     hash_url = hash_url + '?' + urllib.urlencode(query)
-                    print "HASH URL", hash_url
                     headers['Referer'] = urlparse.urljoin(url, s[0])
                     headers['Cookie'] = cookie1 + ';' + cookie2 + ';user-info=null; MarketGidStorage=%7B%220%22%3A%7B%22svspr%22%3A%22%22%2C%22svsds%22%3A3%2C%22TejndEEDj%22%3A%22MTQ4MTM2ODE0NzM0NzQ4NTMyOTAx%22%7D%2C%22C48532%22%3A%7B%22page%22%3A1%2C%22time%22%3A1481368147359%7D%2C%22C77945%22%3A%7B%22page%22%3A1%2C%22time%22%3A1481368147998%7D%2C%22C77947%22%3A%7B%22page%22%3A1%2C%22time%22%3A1481368148109%7D%7D'
                     result = client.request(hash_url, headers=headers, limit='0')
@@ -228,7 +213,6 @@ class source:
                     url = url + '?' + urllib.urlencode(query)
                     #result = client2.http_get(url, headers=headers)
                     result = json.loads(result)
-                    print("S",s[1],"r102", result)
                     quality = 'SD'
                     if s[1] == '1080': quality = '1080p'
                     if s[1] == '720': quality = 'HD'
@@ -238,15 +222,15 @@ class source:
                     query['mobile'] = '0'
                     query.update(self.__get_token(query))
                     grabber = result['grabber'] + '?' + urllib.urlencode(query)
+                    if not grabber.startswith('http'):
+                        grabber = 'http:'+grabber
 
                     result = client.request(grabber, headers=headers, referer=url, limit='0')
-                    print("r112",result)
 
                     result = json.loads(result)
 
                     result = result['data']
                     result = [i['file'] for i in result if 'file' in i]
-                    print("r122",result)
 
                     for i in result:
                         if 'google' in i:
@@ -277,36 +261,45 @@ class source:
         except:
             return
 
+    def __get_token_item(self, index2, mykey):
+        T = ''
+        # for index2 in data:
+        if not index2.startswith('_'):
+            o = list(range(0, 256))
+            i = 0
+            for r in range(0, 256):
+                i = (i + o[r] + ord(mykey[r % len(mykey)])) % 256
+                n = o[r]
+                o[r] = o[i]
+                o[i] = n
+            r = 0
+            i = 0
+            a = T
+            b = 0
+            for s in range(0, len(index2)):
+                r = (r + 1) % 256
+                i = (i + o[r]) % 256
+                n = o[r]
+                o[r] = o[i]
+                o[i] = n
+                a = a + unichr(ord(index2[s]) ^ (o[(o[r] + o[i]) % 256]))
+                b = b + ord(unichr(ord(index2[s]) ^ (o[(o[r] + o[i]) % 256])))
 
-    def __get_token(self, OOOO0O00000O000O0):
-        OO000OO0OO00OO000 = 0
-        for O0OO0OOO0O0OO0O00 in OOOO0O00000O000O0:
-            OOOOOOO0OO00O000O = list(range(0, 256))
-            if not O0OO0OOO0O0OO0O00.startswith('_'):
-                O0O000O000O00OOO0 = 0
-                OO0OO00OOOO00O000 = 0
-                for O0OO00O0O00O0OOO0 in range(0, 256):
-                    O0O000O000O00OOO0 = (O0O000O000O00OOO0 + OOOOOOO0OO00O000O[O0OO00O0O00O0OOO0] + ord(
-                        O0OO0OOO0O0OO0O00[O0OO00O0O00O0OOO0 % len(O0OO0OOO0O0OO0O00)])) % 256
-                    O0O0OO0000O0O0O00 = OOOOOOO0OO00O000O[O0OO00O0O00O0OOO0]
-                    OOOOOOO0OO00O000O[O0OO00O0O00O0OOO0] = OOOOOOO0OO00O000O[O0O000O000O00OOO0]
-                    OOOOOOO0OO00O000O[O0O000O000O00OOO0] = O0O0OO0000O0O0O00
-                O0O000O000O00OOO0 = 0
-                for O0OOO00000O000OO0 in range(0, len(OOOO0O00000O000O0[O0OO0OOO0O0OO0O00])):
-                    O0OO00O0O00O0OOO0 = O0OOO00000O000OO0 + 1  # line:15
-                    O0O000O000O00OOO0 = (O0O000O000O00OOO0 + OOOOOOO0OO00O000O[O0OO00O0O00O0OOO0]) % (256)
-                    O0O0OO0000O0O0O00 = OOOOOOO0OO00O000O[O0OO00O0O00O0OOO0]
-                    OOOOOOO0OO00O000O[O0OO00O0O00O0OOO0] = OOOOOOO0OO00O000O[O0O000O000O00OOO0]
-                    OOOOOOO0OO00O000O[O0O000O000O00OOO0] = O0O0OO0000O0O0O00
-                    OO0OO00OOOO00O000 += ord(OOOO0O00000O000O0[O0OO0OOO0O0OO0O00][O0OOO00000O000OO0]) ^ (
-                                                                                                            OOOOOOO0OO00O000O[
-                                                                                                                (
-                                                                                                                    OOOOOOO0OO00O000O[
-                                                                                                                        O0OO00O0O00O0OOO0] +
-                                                                                                                    OOOOOOO0OO00O000O[
-                                                                                                                        O0O000O000O00OOO0]) % 256]) + O0OOO00000O000OO0
-                OO000OO0OO00OO000 += OO0OO00OOOO00O000
-        return {'_': str(OO000OO0OO00OO000)}
+        print b
+        return b
+        # return T + a
+        # return {'_': str(index1)}
+
+
+    def __get_token(self,data):
+        basickey = base64.decodestring('QlE0QXdCZ1RSenBCYlNLTEI=')
+        c = 0
+        for i in basickey:
+            c = c + ord(i)
+        for i in data:
+            c = c + self.__get_token_item(data[i], basickey + i)
+        # return c
+        return {'_': str(c)}
 
     def __get_xtoken(self):
         url = urlparse.urljoin(self.base_link, 'fghost?%s' % (random.random()))

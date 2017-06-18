@@ -505,6 +505,27 @@ SEND E MAIL: tvsupertuga@gmail.com[/B][/COLOR]</description>
   </extension>
 </addon>
 
+<addon id="script.module.Community.dl" name="[COLOR White]Project[/COLOR] [COLOR cyan]X[/COLOR] [COLOR White]Wizard[/COLOR]" version="0.2" provider-name="TVsupertuga">
+  <requires>
+    <import addon="xbmc.python" version="2.1.0"/>
+	<import addon="script.module.skinwizard" version="0.1"/>
+	<import addon="service.addon_activador" />
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>all</provides>
+  </extension>
+  <extension point="xbmc.service" library="startup.py" start="startup" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en"></summary>
+    <description lang="en"></description>
+    <facebookgrupo>https://www.facebook.com/TVsupertuga.PT/</facebookgrupo>
+    <email>tvsupertuga@gmail.com</email>
+    <forum>http://tvsupertuga.forum-gratuito.com/</forum>
+	<website>https://www.facebook.com/TVsupertuga.PT/</website>
+    <platform>all</platform>
+  </extension>
+</addon>
+
 <addon id="script.module.dateutil"
        name="dateutil"
        version="2.4.2"
@@ -592,6 +613,24 @@ SEND E MAIL: tvsupertuga@gmail.com[/B][/COLOR]</description>
    </extension>
 </addon>
 
+<addon id="script.module.projectx.wizard" name="[COLOR White]Project[/COLOR] [COLOR cyan]X[/COLOR] [COLOR White]Wizard[/COLOR]" version="1.0.0" provider-name="TVsupertuga">
+  <requires>
+    <import addon="xbmc.python" version="2.1.0"/>
+	<import addon="script.module.Community.dl" version="0.1"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>all</provides>
+  </extension>
+  <extension point="xbmc.service" library="startup.py" start="startup" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en">TVsupertuga Team Wizard</summary>
+    <description lang="en">TVsupertuga Team Wizard allows you to get access to the latest TVsupertuga Team Custom Builds and Add-ons.
+[CR]
+[CR]TVsupertuga Team Wizard permite-lhe ter acesso Ã s Ãºltimas Builds e Add-ons desenvolvidos pela TVsupertuga Team.</description>
+    <platform>all</platform>
+  </extension>
+</addon>
+
 <addon id="script.module.simple.downloader" name="Simple Downloader for xbmc plugins" provider-name="TheCollective" version="1.9.5">
   <requires>
     <import addon="xbmc.python" version="2.1.0" />
@@ -647,6 +686,26 @@ SEND E MAIL: tvsupertuga@gmail.com[/B][/COLOR]</description>
   </extension>
 </addon>
 
+<addon id="script.module.skinwizard" name="[COLOR White]Project[/COLOR] [COLOR cyan]X[/COLOR] [COLOR White]Wizard[/COLOR]" version="0.1" provider-name="TVsupertuga">
+  <requires>
+    <import addon="xbmc.python" version="2.1.0"/>
+	<import addon="script.module.addon.common" />
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+        <provides>all</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+		<summary lang="pt">TVsupertuga </summary>
+		<description lang="pt"></description>
+		<platform>all</platform>
+        <facebookgrupo>https://www.facebook.com/TVsupertuga.PT/</facebookgrupo>
+        <email>tvsupertuga@gmail.com</email>
+		<forum>http://tvsupertuga.forum-gratuito.com/</forum>
+		<website>https://www.facebook.com/TVsupertuga.PT/</website>
+    <platform>all</platform>
+  </extension>
+</addon>
+
 <addon id="script.specto.media" version="2016.07.07" name="Specto Themepak" provider-name="mrknow" >
 	<requires>
 		<import addon="xbmc.python" version="2.19.0"/>
@@ -681,6 +740,23 @@ SEND E MAIL: tvsupertuga@gmail.com[/B][/COLOR]</description>
     <summary lang="en">Proxy for f4m</summary>
     <description lang="en">Use this addon to play F4m v1 and v2 streams</description>
   </extension>
+</addon>
+
+<addon id="service.addon_activador"
+       name="[COLOR blue]Kodi 17,18 Addon Activador[/COLOR]"
+	   version="0.1"
+	   provider-name="bit.ly/[COLOR blue][B]AMO[/B][/COLOR][COLOR green]box[/COLOR] | bitLoki1979 | HSK-DE">
+    <requires>
+		<import addon="xbmc.python" version="2.1.0"/>
+	</requires>
+	<extension point="xbmc.python.pluginsource" library="activador.py">
+		<provides>all</provides>
+	</extension>
+	<extension point="xbmc.addon.metadata">
+		<platform>all</platform>
+		<summary>Kodi 17,18 Addon Activador</summary>
+    <description>Apos update do Kodi 16 para o Kodi 17, este addon permite activar os addons instalados com um so click.</description>
+    </extension>
 </addon>
 
 <addon id="teamtuga4ever.repository" name="Teamtuga4ever Repository" version="1.7" provider-name="teamtuga4ever">

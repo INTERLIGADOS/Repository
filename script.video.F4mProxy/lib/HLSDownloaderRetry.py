@@ -14,7 +14,7 @@ Last updated: July 22, 2012
 MODIFIED BY shani to make it work with F4mProxy
 """
 
-import urlparse,urlparse, urllib2, subprocess, os,traceback,cookielib,re,Queue,threading
+import urlparse, urllib2, subprocess, os,traceback,cookielib,re,Queue,threading
 import xml.etree.ElementTree as etree
 import base64
 from struct import unpack, pack
@@ -49,6 +49,7 @@ from crypto.cipher.aes_cbc import AES_CBC
 '''
 gproxy=None
 gauth=None
+nsplayer=False
 callbackDRM=None
 try:
     from Crypto.Cipher import AES
@@ -78,7 +79,7 @@ SUPPORTED_VERSION=3
 cookieJar=cookielib.LWPCookieJar()
 clientHeader=None
     
-class HLSDownloader():
+class HLSDownloaderRetry():
     global cookieJar
     """
     A downloader for f4m manifests or AdobeHDS.
@@ -87,7 +88,7 @@ class HLSDownloader():
     def __init__(self):
         self.init_done=False
 
-    def init(self, out_stream, url, proxy=None,use_proxy_for_chunks=True,g_stopEvent=None, maxbitrate=0, auth=''):
+    def init(self, out_stream, url, proxy=None,use_proxy_for_chunks=True,g_stopEvent=None, maxbitrate=0, auth='', callbackpath="", callbackparam=""):
         global clientHeader,gproxy,gauth
         try:
             self.init_done=False
@@ -96,6 +97,8 @@ class HLSDownloader():
             self.status='init'
             self.proxy = proxy
             self.auth=auth
+            self.callbackpath=callbackpath
+            self.callbackparam=callbackparam
             if self.auth ==None or self.auth =='None'  or self.auth=='':
                 self.auth=None
             if self.auth:
@@ -118,34 +121,44 @@ class HLSDownloader():
                 print 'header recieved now url and headers are',url, clientHeader 
             self.status='init done'
             self.url=url
-            return True# disabled for time being#downloadInternal(self.url,None,self.maxbitrate,self.g_stopEvent, testing=True)
+            return True# disabled downloadInternal(self.url,None,self.maxbitrate,self.g_stopEvent , self.callbackpath,  self.callbackparam, testing=True)
         except: 
             traceback.print_exc()
-        self.status='finished'
+            self.status='finished'
         return False
-
+        
+        
     def keep_sending_video(self,dest_stream, segmentToStart=None, totalSegmentToSend=0):
         try:
             self.status='download Starting'
-            downloadInternal(self.url,dest_stream,self.maxbitrate,self.g_stopEvent)
+
+            downloadInternal(self.url,dest_stream,self.maxbitrate,self.g_stopEvent , self.callbackpath,  self.callbackparam)
         except: 
             traceback.print_exc()
+        print 'setting finished'
         self.status='finished'
 
         
-def getUrl(url,timeout=15,returnres=False,stream=False):
+def getUrl(url,timeout=15,returnres=False,stream =False):
     global cookieJar
     global clientHeader
+    global nsplayer
+
     try:
         post=None
-        #print 'url',url
+        print 'url',url
         session = requests.Session()
         session.cookies = cookieJar
 
         headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux i686; rv:42.0) Gecko/20100101 Firefox/42.0 Iceweasel/42.0'}
+
         if clientHeader:
             for n,v in clientHeader:
                 headers[n]=v
+        if nsplayer: 
+            print 'nsplayer is true'            
+            headers['User-Agent']=binascii.b2a_hex(os.urandom(20))[:32]
+        print 'nsplayer', nsplayer,headers
         proxies={}
         
         if gproxy:
@@ -166,6 +179,7 @@ def getUrl(url,timeout=15,returnres=False,stream=False):
     except:
         print 'Error in getUrl'
         traceback.print_exc()
+        raise 
         return None
         
     
@@ -218,52 +232,13 @@ def download_chunks(URL, chunk_size=4096, enc=None):
     #conn=urllib2.urlopen(URL)
     #print 'starting download'
     
-    conn=getUrl(URL,timeout=6,returnres=True,stream=True)
+    conn=getUrl(URL,returnres=True,stream=True)
     #while 1:
-    if enc:
-        if USEDec==1 :
-            chunk_size*=1000
-        else:
-            chunk_size*=100
-
-    else:
-#        yield conn.content;
-        chunk_size=chunk_size*1000
+    chunk_size=chunk_size*100
     
     for chunk in conn.iter_content(chunk_size=chunk_size):
         yield chunk
-
-        #if chunk_size==-1:
-        #    data=conn.read()
-        #else:
-        #    data=conn.read(chunk_size)
-        #if not data : return
-        #yield data
-        #if chunk_size==-1: return
-    #return 
-    #print 'function finished'
-
-    #if 1==2:
-    #    data= conn.read()
-    #    #print repr(data)
-    #    #print 'data downloaded'
-    #    for i in range(0,len(data), chunk_size):
-    #        d=data[i:i+chunk_size]
-    #        #print repr(d)
-    #        yield d
-    #        
-    #    mod_index=len(data)%chunk_size;
-    #    if mod_index>0 and mod_index <chunk_size :
-    #        d=data[-mod_index:]
-    #        yield d
-    #    #print 'function finished'
-    #    return
-    
-    #    data=conn.read(chunk_size)
-    #    if not data: return
-    #    yield data
-    #print 'LEN of DATA %d'%len(data)
-    #return data
+    conn.close()
 
 def download_file(URL):
     return ''.join(download_chunks(URL))
@@ -288,20 +263,15 @@ def validate_m3u(conn):
 
 def gen_m3u(url, skip_comments=True):
     global cookieJar
-    #print url
-    #url0="https://secure.en.beinsports.net/streaming/wab/multiformat/index.html?partnerId=1864&eventId=978267&xmlerrs=true&antiCache=1417448354098"
-    #conn = getUrl(url0)#urllib2.urlopen(url)
-    #url2= re.compile('streamLaunchCode>\s?.*?(http.*)\s?]]').findall(conn)[0]
-    #print url2
-    #url2="https://beinsportnet5-lh.akamaihd.net/i/bisusch332_0@99606/master.m3u8?reportingKey=eventId-978267_partnerId-1864&hdnea=st=1417475666~exp=1417475726~acl=/*~hmac=7ba8a95d718b62d0a5d83f2e3702c7e076c03825c8631242a9f777d58350199d"
-    #conn = getUrl(url2)#urllib2.urlopen(url)
-    #print conn
-    #url=re.compile(',RESOLUTION=512x2.*\s?(.*?)\s').findall(conn)[0]
+
     conn = getUrl(url,returnres=True )#urllib2.urlopen(url)
-    #print conn
-    #conn=urllib2.urlopen(url)
+    redirurl=None
+    if conn.history: 
+        print 'history'
+        redirurl=conn.url
     enc = validate_m3u(conn)
     #print conn
+    if redirurl: yield 'f4mredirect:'+redirurl
     for line in conn.iter_lines():#.split('\n'):
         line = line.rstrip('\r\n').decode(enc)
         if not line:
@@ -355,17 +325,19 @@ def handle_basic_m3u(url):
     global gauth
     import urlparse
     global callbackDRM
+    
     seq = 1
     enc = None
     nextlen = 5
     duration = 5
     targetduration=5
     aesdone=False
-    redirurl=url                
-    vod=False         
+    redirurl=url
+    vod=False
     for line in gen_m3u(url):
         if line.startswith('f4mredirect:'):
-            redirurl=line.split('f4mredirect:')[1]                     
+            redirurl=line.split('f4mredirect:')[1]
+            continue
         if line.startswith('#EXT'):
             tag, attribs = parse_m3u_tag(line)
             if tag == '#EXTINF':
@@ -383,7 +355,7 @@ def handle_basic_m3u(url):
                 if attribs['METHOD'] == 'NONE':
                     assert 'URI' not in attribs, 'EXT-X-KEY: METHOD=NONE, but URI found'
                     assert 'IV' not in attribs, 'EXT-X-KEY: METHOD=NONE, but IV found'
-                    enc = None
+                    enc = Nonee
                 elif attribs['METHOD'] == 'AES-128':
                     if not aesdone:
                         #aesdone=False there can be multple aes per file
@@ -416,10 +388,13 @@ def handle_basic_m3u(url):
                                     except:
                                         traceback.print_exc()
                             
-                        
+                        elif not codeurl.startswith('http'):
+                            import urlparse
+                            codeurl=urlparse.urljoin(url, codeurl)
                                 
                         
                         #key = download_file(codeurl)
+                        
                         elif not codeurl.startswith('http'):
                             import urlparse
                             codeurl=urlparse.urljoin(url, codeurl)
@@ -454,7 +429,7 @@ def handle_basic_m3u(url):
             elif tag == 'EXT-X-PLAYLIST-TYPE:VOD':
                 vod=True
                 pass                
-                #EXT-X-PLAYLIST-TYPE:VOD 
+                #EXT-X-PLAYLIST-TYPE:VOD
             elif tag == '#EXT-X-ENDLIST':
                 assert not attribs
                 yield None
@@ -487,121 +462,178 @@ def send_back(data,file):
     file.write(data)
     file.flush()
         
-def downloadInternal(url,file,maxbitrate=0,stopEvent=None, testing=False):
+def downloadInternal(url,file,maxbitrate=0,stopEvent=None , callbackpath="",callbackparam="", testing=False):
     global key
     global iv
     global USEDec
+    global cookieJar
+    global clientHeader
+    global nsplayer
     global callbackDRM
     if stopEvent and stopEvent.isSet():
-        return
+        return False
     dumpfile = None
     #dumpfile=open('c:\\temp\\myfile.mp4',"wb")
     variants = []
     variant = None
-     #url check if requires redirect
+    veryfirst=True
+    #url check if requires redirect
     redirurl=url
+    utltext=''
     try:
-        print 'going gor  ',url
+        print 'going for url  ',url
         res=getUrl(url,returnres=True )
         print 'here ', res
         if res.history: 
-            print 'history'
+            print 'history is',res.history
             redirurl=res.url
+            url=redirurl
+        utltext=res.text
         res.close()
         if testing: return True
     except: traceback.print_exc()
     print 'redirurl',redirurl
-    
-    
-    for line in gen_m3u(url):
-        if line.startswith('#EXT'):
-            tag, attribs = parse_m3u_tag(line)
-            if tag == '#EXT-X-STREAM-INF':
-                variant = attribs
-        elif variant:
-            variants.append((line, variant))
-            variant = None
-    print 'variants',variants
-    if len(variants)==0: url=redirurl
-    if len(variants) == 1:
-        url = urlparse.urljoin(redirurl, variants[0][0])
-    elif len(variants) >= 2:
-        print "More than one variant of the stream was provided."
+    if 'EXT-X-STREAM-INF' in utltext:
+        try:
+            for line in gen_m3u(redirurl):
+                if line.startswith('#EXT'):
+                    tag, attribs = parse_m3u_tag(line)
+                    if tag == '#EXT-X-STREAM-INF':
+                        variant = attribs
+                elif variant:
+                    variants.append((line, variant))
+                    variant = None
+            print 'variants',variants
+            if len(variants)==0: url=redirurl
+            if len(variants) == 1:
+                url = urlparse.urljoin(redirurl, variants[0][0])
+            elif len(variants) >= 2:
+                print "More than one variant of the stream was provided."
 
-        choice=-1
-        lastbitrate=0
-        print 'maxbitrate',maxbitrate
-        for i, (vurl, vattrs) in enumerate(variants):
-            print i, vurl,
-            for attr in vattrs:
-                key, value = attr.split('=')
-                key = key.strip()
-                value = value.strip().strip('"')
-                if key == 'BANDWIDTH':
-                    print 'bitrate %.2f kbps'%(int(value)/1024.0)
-                    if int(value)<=int(maxbitrate) and int(value)>lastbitrate:
-                        choice=i
-                        lastbitrate=int(value)
-                elif key == 'PROGRAM-ID':
-                    print 'program %s'%value,
-                elif key == 'CODECS':
-                    print 'codec %s'%value,
-                elif key == 'RESOLUTION':
-                    print 'resolution %s'%value,
-                else:
-                    print "unknown STREAM-INF attribute %s"%key
-                    #raise ValueError("unknown STREAM-INF attribute %s"%key)
-            print
-        if choice==-1: choice=0
-        #choice = int(raw_input("Selection? "))
-        print 'choose %d'%choice
-        url = urlparse.urljoin(redirurl, variants[choice][0])
+                choice=-1
+                lastbitrate=0
+                print 'maxbitrate',maxbitrate
+                for i, (vurl, vattrs) in enumerate(variants):
+                    print i, vurl,
+                    for attr in vattrs:
+                        key, value = attr.split('=')
+                        key = key.strip()
+                        value = value.strip().strip('"')
+                        if key == 'BANDWIDTH':
+                            print 'bitrate %.2f kbps'%(int(value)/1024.0)
+                            if int(value)<=int(maxbitrate) and int(value)>lastbitrate:
+                                choice=i
+                                lastbitrate=int(value)
+                        elif key == 'PROGRAM-ID':
+                            print 'program %s'%value,
+                        elif key == 'CODECS':
+                            print 'codec %s'%value,
+                        elif key == 'RESOLUTION':
+                            print 'resolution %s'%value,
+                        else:
+                            print "unknown STREAM-INF attribute %s"%key
+                            #raise ValueError("unknown STREAM-INF attribute %s"%key)
+                    print
+                if choice==-1: choice=0
+                #choice = int(raw_input("Selection? "))
+                print 'choose %d'%choice
+                url = urlparse.urljoin(redirurl, variants[choice][0])
+        except: 
+            
+            raise
 
-    #queue = Queue.Queue(1024) # 1024 blocks of 4K each ~ 4MB buffer
-    control = ['go']
-    #thread = threading.Thread(target=player_pipe, args=(queue, control,file))
-    #thread.start()
+    
+    print 'final url',url
     last_seq = -1
     targetduration = 5
     changed = 0
-    glsession=None
-    #if ':7777' in url:
-    #    try:
-    #        glsession=re.compile(':7777\/.*?m3u8.*?session=(.*?)&').findall(url)[0]
-    #    except: 
-    #        pass
 
+    fails=0
+    maxfails=5
+    nsplayer=False
+    print 'inside HLS RETRY'
     try:
+
+        #file.write(b'FLV\x01')
+        #file.write(b'\x01')
+        #file.write(b'\x00\x00\x00\x09')
+        # FLV File body
+        #file.write(b'\x00\x00\x00\x09')
         while 1==1:#thread.isAlive():
+            
+            reconnect=False
+            vod=False
+            if fails>maxfails: 
+                #stopEvent.set()
+                break
             if stopEvent and stopEvent.isSet():
-                return
-            medialist = list(handle_basic_m3u(url))
-            
-            if testing: 
+                return False
+            try:
+                medialist = list(handle_basic_m3u(url))
                 if len(medialist)==0: raise Exception('empty m3u8')
-                return True
+                print medialist
+                if testing: return True
+            except Exception as inst:
+                print 'here in exp',inst
+                print fails
+                fails+=1
+                if testing and fails>6: return False
+                
+                if testing==False and '403' in repr(inst).lower() and callbackpath and len(callbackpath)>0:
+                    print 'callback'
+                    import importlib, os
+                    foldername=os.path.sep.join(callbackpath.split(os.path.sep)[:-1])
+                    urlnew=''
+                    if foldername not in sys.path:
+                        sys.path.append(foldername)
+                    try:
+                        callbackfilename= callbackpath.split(os.path.sep)[-1].split('.')[0]
+                        callbackmodule = importlib.import_module(callbackfilename)
+                        urlnew,cjnew=callbackmodule.f4mcallback(callbackparam, 1, inst, cookieJar , url, clientHeader)
+                    except: traceback.print_exc()
+                    if urlnew and len(urlnew)>0 and urlnew.startswith('http'):
+                        print 'got new url',url
+                        url=urlnew
+                        cookieJar= cjnew
+                        continue
+                    else: 
+                        return
+                if '403' in repr(inst).lower() or '401' in repr(inst).lower():
+                    if fails in [1,4,5,10,15,19]: 
+                        nsplayer=True 
+                    else:
+                        nsplayer=False
+                    print 'nsplayer',nsplayer
+                    xbmc.sleep(1000)
+                continue 
+
+            nsplayer=False
             playedSomething=False
-            if medialist==None: return False
-            
-            if None in medialist:
-                # choose to start playback at the start, since this is a VOD stream
-                pass
-            else:
-                # choose to start playback three files from the end, since this is a live stream
-                medialist = medialist[0:]
+            if medialist==None: return
+
+                ## choose to start playback three files from the end, since this is a live stream
+                #medialist = medialist[-6:]
             #print 'medialist',medialist
             addsomewait=False
             lastKeyUrl=""
             lastkey=None
+            playedduration=0
+            st=time.time()
             for media in medialist:
                  
                 if stopEvent and stopEvent.isSet():
-                    return
+                    return False
                 if media is None:
+                    #send_back('G'+chr(254)+chr(255)+('\0'*1), file)
                     #queue.put(None, block=True)
-                    return
+                    
+                    
+                    if stopEvent:
+                        print 'set events'
+                        stopEvent.set()
+                    return False
                 seq, encobj, duration, targetduration, media_url,vod = media
-                addsomewait=True
+                
                 if seq > last_seq:
                     #print 'downloading.............',url
                     
@@ -627,35 +659,66 @@ def downloadInternal(url,file,maxbitrate=0,stopEvent=None, testing=False):
                             keyb= array.array('B',key)
                             enc=python_aes.new(keyb, 2, ivb)
                         #enc=AESDecrypter.new(key, 2, iv)
-                        
-                    if glsession: media_url=media_url.replace(glsession,glsession[:-10]+''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10)))
                     try:
-                        for chunk in download_chunks(urlparse.urljoin(url, media_url),enc=encobj):
-                            if stopEvent and stopEvent.isSet():
-                                return
-                            #print '1. chunk available %d'%len(chunk)
-                            if enc: 
+                        data=None
+                        try:
+                            print 'downloading', urlparse.urljoin(url, media_url)
+                            #for chunk in download_chunks(urlparse.urljoin(url, media_url)):
+                            for chunk in download_chunks(media_url):
+                                if stopEvent and stopEvent.isSet():
+                                    return False
+                                print 'sending chunk', len(chunk)
+                                if enc: 
                                  if not USEDec==3:
                                     chunk = enc.decrypt(chunk)
                                  else:
                                     chunkb=array.array('B',chunk)
                                     chunk = enc.decrypt(chunkb)
                                     chunk="".join(map(chr, chunk))
-                            #if enc: chunk = enc.decrypt(chunk,key,'CBC')
-                            #print '2. chunk done %d'%len(chunk)
-                            if dumpfile: dumpfile.write(chunk)
-                            #queue.put(chunk, block=True)
-                            send_back(chunk,file)
-                            #print '3. chunk available %d'%len(chunk)
-                        last_seq = seq
-                        changed = 1
-                        playedSomething=True
+                                send_back(chunk,file)
+                                data="send"
+                            playedduration+=duration
+                            addsomewait=True
+                      
+                        except Exception as inst:
+                            print 'xxxx',repr(inst)
+                            if 'forcibly closed' in repr(inst): 
+                                print 'returning'
+                                return False
+                        if stopEvent and stopEvent.isSet():
+                            return False
+
+                        if data and len(data)>0:# chunk in download_chunks(urlparse.urljoin(url, media_url),enc=encobj):
+
+                            #if not veryfirst:
+                            #    if dumpfile: dumpfile.write(chunk)
+                            #    #queue.put(chunk, block=True)
+                            #    send_back(data,file)
+                            #    #print '3. chunk available %d'%len(chunk)
+                            veryfirst=False
+                            last_seq = seq
+                            changed = 1
+                            playedSomething=True
+                            fails=0
+                            maxfails=20
+                        else:
+                            reconnect=True
+                            fails+=1
+                            break
                     except: pass
             
-            '''if changed == 1:
+            if vod: return True
+            if playedSomething == 1:
                 # initial minimum reload delay
-                time.sleep(duration)
-            elif changed == 0:
+                timetowait=int(targetduration - (time.time()-st))#
+                if (timetowait)>0:
+                    print 'sleeping because targetduration',timetowait
+                    for t in range(0,timetowait):
+                        xbmc.sleep(1000)
+                        print 'sleeep for 1sec',t
+                        if stopEvent and stopEvent.isSet():
+                            return False
+            '''elif changed == 0:
                 # first attempt
                 time.sleep(targetduration*0.5)
             elif changed == -1:
@@ -667,11 +730,12 @@ def downloadInternal(url,file,maxbitrate=0,stopEvent=None, testing=False):
             
             changed -= 1
             '''
-            return
+            
             if not playedSomething:
-                xbmc.sleep(2000+ (3000 if addsomewait else 0))
+                xbmc.sleep(3000+ (3000 if addsomewait else 0))
+            
     except:
-        control[0] = 'stop'
+        
         raise
 
     
